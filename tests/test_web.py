@@ -86,7 +86,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
         self.assertIn(b'type="file"', body)
         self.assertIn(b'name="items"', body)
-        self.assertIn(b"Advanced settings", body)
+        self.assertIn("高级设置".encode("utf-8"), body)
         self.assertIn(b'name="min_font_size"', body)
         self.assertIn(b'name="footer_min_height"', body)
 
@@ -200,7 +200,7 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(status, "400 Bad Request")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
-        self.assertIn(b"Could not parse", response_body)
+        self.assertIn("无法解析".encode("utf-8"), response_body)
 
     @patch("label_pdf_sku.web.append_footer_to_label")
     def test_post_root_returns_form_error_for_invalid_advanced_settings(
@@ -233,7 +233,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(status, "400 Bad Request")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
         self.assertIn(
-            b"min_font_size cannot be greater than max_font_size.",
+            "最小字号不能大于最大字号。".encode("utf-8"),
             response_body,
         )
         self.assertIn(b'<details class="advanced-settings" open>', response_body)

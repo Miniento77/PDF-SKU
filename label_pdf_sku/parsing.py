@@ -15,12 +15,12 @@ def render_item_text(item: SkuQuantity) -> str:
 
 def parse_items(raw_items: str) -> List[SkuQuantity]:
     if not raw_items or not raw_items.strip():
-        raise ParseError("Manual SKU input cannot be blank.")
+        raise ParseError("SKU 输入不能为空。")
 
     chunks = [chunk.strip() for chunk in raw_items.split(",")]
     if any(not chunk for chunk in chunks):
         raise ParseError(
-            "Each item must look like 'SKU x2' and items must be comma-separated."
+            "每一项都必须是类似“SKU x2”的格式，并使用英文逗号分隔。"
         )
 
     parsed_items: List[SkuQuantity] = []
@@ -28,15 +28,14 @@ def parse_items(raw_items: str) -> List[SkuQuantity]:
         match = ITEM_PATTERN.fullmatch(chunk)
         if match is None:
             raise ParseError(
-                f"Could not parse '{chunk}'. Expected format like 'SF601 x2'."
+                f"无法解析“{chunk}”，正确格式应类似“SF601 x2”。"
             )
 
         sku = match.group("sku").strip()
         quantity = int(match.group("qty"))
         if quantity < 1:
-            raise ParseError(f"Quantity must be at least 1 for '{sku}'.")
+            raise ParseError(f"“{sku}”的数量至少要为 1。")
 
         parsed_items.append(SkuQuantity(sku=sku, quantity=quantity))
 
     return parsed_items
-

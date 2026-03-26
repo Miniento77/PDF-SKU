@@ -13,15 +13,15 @@ from .pdf_ops import append_footer_to_label
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Extend a single-page shipping-label PDF with a footer containing "
-            "SKU and quantity items for 4x6 label printing."
+            "为单页快递面单 PDF 增加底部区域，并为 4x6 面单打印排入 "
+            "SKU 与数量信息。"
         )
     )
-    parser.add_argument("input_pdf", type=Path, help="Path to the single-page source PDF.")
-    parser.add_argument("output_pdf", type=Path, help="Path for the modified output PDF.")
+    parser.add_argument("input_pdf", type=Path, help="输入的单页 PDF 面单路径。")
+    parser.add_argument("output_pdf", type=Path, help="输出 PDF 的保存路径。")
     parser.add_argument(
         "items",
-        help="Comma-separated SKU quantities like 'SF601 x2, BJ601DRY x1'.",
+        help="SKU 与数量文本，使用英文逗号分隔，例如 'SF601 x2, BJ601DRY x1'。",
     )
     parser.add_argument("--min-font-size", type=float, default=LayoutConfig.min_font_size)
     parser.add_argument("--max-font-size", type=float, default=LayoutConfig.max_font_size)
@@ -64,12 +64,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
         )
     except (DependencyError, LayoutError, ParseError, OSError, ValueError) as exc:
-        parser.exit(1, f"Error: {exc}\n")
+        parser.exit(1, f"错误：{exc}\n")
 
     print(
-        "Wrote "
+        "已生成 "
         f"{args.output_pdf} "
-        f"with {len(layout.lines)} footer line(s) at {layout.font_size:.1f}pt."
+        f"，共 {len(layout.lines)} 行底部内容，字号为 {layout.font_size:.1f}pt。"
     )
     return 0
-

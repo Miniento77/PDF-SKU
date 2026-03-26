@@ -51,8 +51,8 @@ def measure_text_reportlab(text: str, font_name: str, font_size: float) -> float
         from reportlab.pdfbase.pdfmetrics import stringWidth
     except ImportError as exc:
         raise DependencyError(
-            "Missing PDF dependency. Install with "
-            "'python3 -m pip install pypdf reportlab'."
+            "缺少 PDF 依赖，请先执行 "
+            "'python3 -m pip install pypdf reportlab'。"
         ) from exc
 
     return float(stringWidth(text, font_name, font_size))
@@ -65,14 +65,14 @@ def choose_footer_layout(
     measure_text: TextMeasure | None = None,
 ) -> FooterLayout:
     if not items:
-        raise LayoutError("At least one SKU item is required to build a footer.")
+        raise LayoutError("至少需要一条 SKU 项目才能生成底部内容。")
 
     config = config or LayoutConfig()
     validate_layout_config(config)
 
     usable_width = page_width - (2 * config.horizontal_padding)
     if usable_width <= 0:
-        raise LayoutError("Configured horizontal padding leaves no room for footer text.")
+        raise LayoutError("当前左右边距过大，底部文字已没有可用空间。")
 
     measure = measure_text or measure_text_reportlab
     rendered_items = [render_item_text(item) for item in items]
@@ -121,8 +121,7 @@ def choose_footer_layout(
 
     if not candidates:
         raise LayoutError(
-            "Footer items do not fit within the configured width, font-size bounds, "
-            "and line-count limit."
+            "当前配置下，SKU 内容无法在允许的宽度、字号范围和最大行数内完成排版。"
         )
 
     return max(candidates, key=lambda layout: (layout.font_size, -len(layout.lines)))
@@ -130,17 +129,17 @@ def choose_footer_layout(
 
 def validate_layout_config(config: LayoutConfig) -> None:
     if config.min_font_size <= 0 or config.max_font_size <= 0:
-        raise ValueError("Font sizes must be positive.")
+        raise ValueError("字号必须大于 0。")
     if config.min_font_size > config.max_font_size:
-        raise ValueError("min_font_size cannot be greater than max_font_size.")
+        raise ValueError("最小字号不能大于最大字号。")
     if config.max_lines < 1:
-        raise ValueError("max_lines must be at least 1.")
+        raise ValueError("最大行数至少要为 1。")
     if config.horizontal_padding < 0 or config.vertical_padding < 0:
-        raise ValueError("Padding cannot be negative.")
+        raise ValueError("边距不能为负数。")
     if config.line_spacing < 1:
-        raise ValueError("line_spacing must be at least 1.")
+        raise ValueError("行距至少要为 1。")
     if config.min_footer_height <= 0:
-        raise ValueError("min_footer_height must be positive.")
+        raise ValueError("底部最小高度必须大于 0。")
 
 
 def _build_unit_widths(

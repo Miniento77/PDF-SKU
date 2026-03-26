@@ -24,7 +24,7 @@ def append_footer_to_label(
     with source_path.open("rb") as source_handle:
         reader = PdfReader(source_handle)
         if len(reader.pages) != 1:
-            raise ValueError("Input PDF must contain exactly one page.")
+            raise ValueError("输入的 PDF 必须且只能包含 1 页。")
 
         source_page = reader.pages[0]
         page_width = float(source_page.mediabox.width)
@@ -101,8 +101,8 @@ def _load_pypdf() -> Tuple[type, type, type]:
         from pypdf import PdfReader, PdfWriter, Transformation
     except ImportError as exc:
         raise DependencyError(
-            "Missing PDF dependency. Install with "
-            "'python3 -m pip install pypdf reportlab'."
+            "缺少 PDF 依赖，请先执行 "
+            "'python3 -m pip install pypdf reportlab'。"
         ) from exc
 
     return PdfReader, PdfWriter, Transformation
@@ -113,8 +113,8 @@ def _load_reportlab_canvas():
         from reportlab.pdfgen.canvas import Canvas
     except ImportError as exc:
         raise DependencyError(
-            "Missing PDF dependency. Install with "
-            "'python3 -m pip install pypdf reportlab'."
+            "缺少 PDF 依赖，请先执行 "
+            "'python3 -m pip install pypdf reportlab'。"
         ) from exc
 
     return Canvas

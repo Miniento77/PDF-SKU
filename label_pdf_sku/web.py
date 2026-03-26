@@ -36,68 +36,68 @@ _ADVANCED_FIELDS = (
     _AdvancedField(
         name="min_font_size",
         config_name="min_font_size",
-        label="Minimum font size",
+        label="最小字号",
         input_mode="decimal",
         step="0.1",
         placeholder=f"{LayoutConfig.min_font_size:g}",
         min_value="0.1",
         parser=float,
-        parser_label="a number",
+        parser_label="数字",
     ),
     _AdvancedField(
         name="max_font_size",
         config_name="max_font_size",
-        label="Maximum font size",
+        label="最大字号",
         input_mode="decimal",
         step="0.1",
         placeholder=f"{LayoutConfig.max_font_size:g}",
         min_value="0.1",
         parser=float,
-        parser_label="a number",
+        parser_label="数字",
     ),
     _AdvancedField(
         name="max_lines",
         config_name="max_lines",
-        label="Maximum lines",
+        label="最大行数",
         input_mode="numeric",
         step="1",
         placeholder=f"{LayoutConfig.max_lines:g}",
         min_value="1",
         parser=int,
-        parser_label="a whole number",
+        parser_label="整数",
     ),
     _AdvancedField(
         name="horizontal_padding",
         config_name="horizontal_padding",
-        label="Horizontal padding",
+        label="左右边距",
         input_mode="decimal",
         step="0.1",
         placeholder=f"{LayoutConfig.horizontal_padding:g}",
         min_value="0",
         parser=float,
-        parser_label="a number",
+        parser_label="数字",
     ),
     _AdvancedField(
         name="vertical_padding",
         config_name="vertical_padding",
-        label="Vertical padding",
+        label="上下边距",
         input_mode="decimal",
         step="0.1",
         placeholder=f"{LayoutConfig.vertical_padding:g}",
         min_value="0",
         parser=float,
-        parser_label="a number",
+        parser_label="数字",
     ),
     _AdvancedField(
         name="footer_min_height",
         config_name="min_footer_height",
-        label="Minimum footer height",
+        label="底部最小高度",
         input_mode="decimal",
         step="0.1",
         placeholder=f"{LayoutConfig.min_footer_height:g}",
         min_value="0.1",
         parser=float,
-        parser_label="a number",
+        parser_label="数字",
     ),
 )
 
@@ -116,7 +116,7 @@ def create_app() -> WsgiApp:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run the local label-pdf-sku web app."
+        description="启动本地面单 SKU 标注工具。"
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
@@ -125,13 +125,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     app = create_app()
     try:
         with make_server(args.host, args.port, app) as server:
-            print(f"Serving label-pdf-sku at http://{args.host}:{args.port}")
+            print(f"面单 SKU 标注工具已启动：http://{args.host}:{args.port}")
             try:
                 server.serve_forever()
             except KeyboardInterrupt:
-                print("\nShutting down.")
+                print("\n服务已停止。")
     except OSError as exc:
-        parser.exit(1, f"Error: {exc}\n")
+        parser.exit(1, f"错误：{exc}\n")
 
     return 0
 
@@ -141,7 +141,7 @@ def _dispatch_request(environ: dict) -> Response:
     path = environ.get("PATH_INFO", "/")
 
     if path != "/":
-        return _text_response("404 Not Found", "Not Found\n")
+        return _text_response("404 Not Found", "页面不存在\n")
     if method == "GET":
         return _html_response(
             raw_items="",
@@ -154,7 +154,7 @@ def _dispatch_request(environ: dict) -> Response:
 
     return _text_response(
         "405 Method Not Allowed",
-        "Method Not Allowed\n",
+        "不支持的请求方法\n",
         extra_headers=[("Allow", "GET, POST")],
     )
 
@@ -173,7 +173,7 @@ def _handle_form_submission(environ: dict) -> Response:
     if upload is None or not getattr(upload, "filename", ""):
         return _html_response(
             raw_items=raw_items,
-            error_message="Choose a single PDF file to upload.",
+            error_message="请选择一个 PDF 面单文件上传。",
             status="400 Bad Request",
             raw_layout_values=raw_layout_values,
             advanced_open=advanced_open,
@@ -183,7 +183,7 @@ def _handle_form_submission(environ: dict) -> Response:
     if not uploaded_bytes:
         return _html_response(
             raw_items=raw_items,
-            error_message="Uploaded PDF cannot be empty.",
+            error_message="上传的 PDF 不能为空。",
             status="400 Bad Request",
             raw_layout_values=raw_layout_values,
             advanced_open=advanced_open,
@@ -261,11 +261,11 @@ def _html_response(
     details_open = " open" if advanced_open else ""
 
     body = f"""<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>label-pdf-sku</title>
+  <title>面单 SKU 标注工具</title>
   <style>
     :root {{
       color-scheme: light;
@@ -371,28 +371,28 @@ def _html_response(
 </head>
 <body>
   <main>
-    <h1>label-pdf-sku</h1>
-    <p>Upload one shipping-label PDF, enter comma-separated <code>SKU xQTY</code> values, and download the updated PDF with the footer appended.</p>
+    <h1>面单 SKU 标注工具</h1>
+    <p>上传一张快递面单 PDF，输入用逗号分隔的 <code>SKU x数量</code>，即可下载底部已追加 SKU 区域的新 PDF。</p>
     {error_block}
     <form method="post" enctype="multipart/form-data">
-      <label for="input_pdf">Label PDF</label>
+      <label for="input_pdf">面单 PDF</label>
       <input id="input_pdf" name="input_pdf" type="file" accept="application/pdf,.pdf" required>
 
-      <label for="items">SKU + quantity text</label>
+      <label for="items">SKU 与数量</label>
       <textarea id="items" name="items" placeholder="SF601 x2, BJ601DRY x1" required>{escaped_items}</textarea>
-      <p class="hint">Example: <code>SF601 x2, BJ601DRY x1, DRSF601 x3</code></p>
+      <p class="hint">示例：<code>SF601 x2, BJ601DRY x1, DRSF601 x3</code></p>
 
       <details class="advanced-settings"{details_open}>
-        <summary>Advanced settings</summary>
+        <summary>高级设置</summary>
         <fieldset>
-          <p class="hint">Leave these blank to keep the default automatic footer layout.</p>
+          <p class="hint">留空则使用默认的自动排版参数。</p>
           <div class="advanced-grid">
             {advanced_fields}
           </div>
         </fieldset>
       </details>
 
-      <button type="submit">Generate PDF</button>
+      <button type="submit">生成 PDF</button>
     </form>
   </main>
 </body>
@@ -433,7 +433,7 @@ def _build_layout_config(raw_layout_values: dict[str, str]) -> LayoutConfig:
         try:
             parsed_values[field.config_name] = field.parser(raw_value)
         except ValueError as exc:
-            raise ValueError(f"{field.name} must be {field.parser_label}.") from exc
+            raise ValueError(f"{field.label}必须填写为{field.parser_label}。") from exc
 
     config = LayoutConfig(**parsed_values)
     validate_layout_config(config)

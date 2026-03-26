@@ -1,56 +1,56 @@
 # label-pdf-sku
 
-`label-pdf-sku` is a small local web app for a single shipping-label PDF at a time. It preserves the original PDF as vector content, extends the page downward, and renders manually entered SKU quantities into an adaptive footer sized for 4x6 label workflows.
+`label-pdf-sku` 是一个本地网页工具，一次处理一张快递面单 PDF。它会尽量保留原始 PDF 的矢量内容，在页面下方扩展出新的底部区域，并把手动输入的 SKU 与数量排版进去，适配 4x6 面单打印。
 
-## How it works
+## 工作方式
 
-- Reads a single-page input PDF with `pypdf`.
-- Keeps the original label content intact by merging that page onto a taller output page instead of rasterizing it.
-- Measures footer text with `reportlab` so font size and line count adapt to the real rendered width.
-- Wraps only at item boundaries, preserving the original item order.
-- Exposes the existing PDF pipeline through a tiny local WSGI app with one upload form and one download response.
+- 使用 `pypdf` 读取单页输入 PDF。
+- 通过把原始页面合并到更高的新页面上，尽量保持原面单内容清晰且不栅格化。
+- 使用 `reportlab` 测量底部文字宽度，让字号和行数自动适配实际排版空间。
+- 只在 SKU 条目边界换行，保持原输入顺序。
+- 通过一个简单的本地 WSGI 网页提供上传、生成和下载流程。
 
-## Run locally
+## 本地运行
 
-Use the project-local virtual environment if it exists:
+优先使用项目自带的虚拟环境：
 
 ```bash
 cd /Users/jrclawbot/.openclaw/workspace/projects/label-pdf-sku
 .venv/bin/python app.py
 ```
 
-Then open `http://127.0.0.1:8000` in a browser.
+然后在浏览器打开 `http://127.0.0.1:8000`。
 
-Optional server flags:
+可选启动参数：
 
 ```bash
 .venv/bin/python app.py --host 127.0.0.1 --port 8000
 ```
 
-## Browser usage
+## 网页使用方法
 
-1. Upload one PDF label file.
-2. Enter comma-separated SKU quantities such as `SF601 x2, BJ601DRY x1, DRSF601 x3`.
-3. Leave Advanced settings collapsed for the default automatic layout, or expand it to override `min_font_size`, `max_font_size`, `max_lines`, `horizontal_padding`, `vertical_padding`, and `footer_min_height`.
-4. Submit the form.
-5. Download the generated PDF.
+1. 上传一张 PDF 面单文件。
+2. 输入使用英文逗号分隔的 SKU 与数量，例如 `SF601 x2, BJ601DRY x1, DRSF601 x3`。
+3. 默认情况下保持“高级设置”收起即可自动排版；如果你想手动控制布局，也可以展开后填写 `min_font_size`、`max_font_size`、`max_lines`、`horizontal_padding`、`vertical_padding` 和 `footer_min_height`。
+4. 提交表单。
+5. 下载生成后的 PDF。
 
-The advanced inputs are optional. Blank values use the same sensible layout defaults as the CLI.
+高级设置都是可选项，留空时会使用与 CLI 相同的默认排版参数。
 
 ## CLI
 
-The original CLI is still available:
+命令行版本依然可用：
 
 ```bash
 .venv/bin/python -m label_pdf_sku.cli input.pdf output.pdf "SF601 x2, BJ601DRY x1"
 ```
 
-## Tests
+## 测试
 
-Run the full test suite with the project-local environment:
+使用项目虚拟环境运行完整测试：
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-PDF integration tests run automatically when both `pypdf` and `reportlab` are installed.
+当 `pypdf` 和 `reportlab` 都已安装时，PDF 集成测试会自动运行。
