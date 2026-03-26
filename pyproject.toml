@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "label-pdf-sku"
+version = "0.1.0"
+description = "Append adaptive SKU footers to single-page shipping-label PDFs."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "pypdf>=4,<6",
+  "reportlab>=4,<5",
+]
+
+[tool.setuptools.packages.find]
+include = ["label_pdf_sku*"]
+
