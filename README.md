@@ -12,10 +12,14 @@
 
 ## 本地运行
 
-优先使用项目自带的虚拟环境：
+推荐先创建项目自己的虚拟环境并安装依赖：
 
 ```bash
-cd /Users/jrclawbot/.openclaw/workspace/projects/label-pdf-sku
+git clone https://github.com/Miniento77/PDF-SKU.git
+cd PDF-SKU
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e .
 .venv/bin/python app.py
 ```
 
