@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 from wsgiref.util import setup_testing_defaults
 
+from label_pdf_sku.layout import LayoutConfig
 from label_pdf_sku.web import create_app, main
 
 
@@ -85,15 +86,19 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
         self.assertIn(b'type="file"', body)
         self.assertIn(b'name="items"', body)
+        self.assertIn(b"Advanced settings", body)
+        self.assertIn(b'name="min_font_size"', body)
+        self.assertIn(b'name="footer_min_height"', body)
 
     @patch("label_pdf_sku.web.append_footer_to_label")
     def test_post_root_returns_generated_pdf(self, append_footer_to_label_mock) -> None:
-        def write_output(input_pdf, output_pdf, items):
+        def write_output(input_pdf, output_pdf, items, config):
             self.assertTrue(Path(input_pdf).exists())
             self.assertEqual(
                 [item.display_text for item in items],
                 ["SF601 x2", "BJ601DRY x1"],
             )
+            self.assertEqual(config, LayoutConfig())
             Path(output_pdf).write_bytes(b"%PDF-1.4\nmock output\n")
 
         append_footer_to_label_mock.side_effect = write_output
@@ -123,6 +128,55 @@ class WebAppTests(unittest.TestCase):
             'attachment; filename="shipping-label-sku.pdf"',
         )
         self.assertEqual(response_body, b"%PDF-1.4\nmock output\n")
+        self.assertEqual(append_footer_to_label_mock.call_args.kwargs["config"], LayoutConfig())
+
+    @patch("label_pdf_sku.web.append_footer_to_label")
+    def test_post_root_passes_advanced_settings_to_layout_config(
+        self,
+        append_footer_to_label_mock,
+    ) -> None:
+        append_footer_to_label_mock.side_effect = (
+            lambda input_pdf, output_pdf, items, config: Path(output_pdf).write_bytes(
+                b"%PDF-1.4\nmock output\n"
+            )
+        )
+        body, content_type = build_multipart_body(
+            fields={
+                "items": "SF601 x2",
+                "min_font_size": "10",
+                "max_font_size": "24",
+                "max_lines": "3",
+                "horizontal_padding": "20",
+                "vertical_padding": "8",
+                "footer_min_height": "54",
+            },
+            files=[
+                (
+                    "input_pdf",
+                    "shipping-label.pdf",
+                    "application/pdf",
+                    b"%PDF-1.4\nmock input\n",
+                )
+            ],
+        )
+
+        status, headers, response_body = invoke_app(
+            self.app,
+            "POST",
+            body=body,
+            content_type=content_type,
+        )
+
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "application/pdf")
+        self.assertEqual(response_body, b"%PDF-1.4\nmock output\n")
+        config = append_footer_to_label_mock.call_args.kwargs["config"]
+        self.assertEqual(config.min_font_size, 10.0)
+        self.assertEqual(config.max_font_size, 24.0)
+        self.assertEqual(config.max_lines, 3)
+        self.assertEqual(config.horizontal_padding, 20.0)
+        self.assertEqual(config.vertical_padding, 8.0)
+        self.assertEqual(config.min_footer_height, 54.0)
 
     def test_post_root_returns_form_error_for_invalid_items(self) -> None:
         body, content_type = build_multipart_body(
@@ -147,6 +201,45 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(status, "400 Bad Request")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
         self.assertIn(b"Could not parse", response_body)
+
+    @patch("label_pdf_sku.web.append_footer_to_label")
+    def test_post_root_returns_form_error_for_invalid_advanced_settings(
+        self,
+        append_footer_to_label_mock,
+    ) -> None:
+        body, content_type = build_multipart_body(
+            fields={
+                "items": "SF601 x2",
+                "min_font_size": "30",
+                "max_font_size": "20",
+            },
+            files=[
+                (
+                    "input_pdf",
+                    "shipping-label.pdf",
+                    "application/pdf",
+                    b"%PDF-1.4\nmock input\n",
+                )
+            ],
+        )
+
+        status, headers, response_body = invoke_app(
+            self.app,
+            "POST",
+            body=body,
+            content_type=content_type,
+        )
+
+        self.assertEqual(status, "400 Bad Request")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertIn(
+            b"min_font_size cannot be greater than max_font_size.",
+            response_body,
+        )
+        self.assertIn(b'<details class="advanced-settings" open>', response_body)
+        self.assertIn(b'value="30"', response_body)
+        self.assertIn(b'value="20"', response_body)
+        append_footer_to_label_mock.assert_not_called()
 
     @patch("sys.stdout", new_callable=io.StringIO)
     @patch("label_pdf_sku.web.make_server")

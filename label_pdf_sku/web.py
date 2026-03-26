@@ -5,16 +5,101 @@ import cgi
 import html
 import re
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Sequence, Tuple
 from wsgiref.simple_server import make_server
 
 from .errors import DependencyError, LayoutError, ParseError
+from .layout import LayoutConfig, validate_layout_config
 from .parsing import parse_items
 from .pdf_ops import append_footer_to_label
 
 Response = Tuple[str, list[tuple[str, str]], bytes]
 WsgiApp = Callable[[dict, Callable[[str, list[tuple[str, str]]], object]], Iterable[bytes]]
+
+
+@dataclass(frozen=True)
+class _AdvancedField:
+    name: str
+    config_name: str
+    label: str
+    input_mode: str
+    step: str
+    placeholder: str
+    min_value: str
+    parser: Callable[[str], float | int]
+    parser_label: str
+
+
+_ADVANCED_FIELDS = (
+    _AdvancedField(
+        name="min_font_size",
+        config_name="min_font_size",
+        label="Minimum font size",
+        input_mode="decimal",
+        step="0.1",
+        placeholder=f"{LayoutConfig.min_font_size:g}",
+        min_value="0.1",
+        parser=float,
+        parser_label="a number",
+    ),
+    _AdvancedField(
+        name="max_font_size",
+        config_name="max_font_size",
+        label="Maximum font size",
+        input_mode="decimal",
+        step="0.1",
+        placeholder=f"{LayoutConfig.max_font_size:g}",
+        min_value="0.1",
+        parser=float,
+        parser_label="a number",
+    ),
+    _AdvancedField(
+        name="max_lines",
+        config_name="max_lines",
+        label="Maximum lines",
+        input_mode="numeric",
+        step="1",
+        placeholder=f"{LayoutConfig.max_lines:g}",
+        min_value="1",
+        parser=int,
+        parser_label="a whole number",
+    ),
+    _AdvancedField(
+        name="horizontal_padding",
+        config_name="horizontal_padding",
+        label="Horizontal padding",
+        input_mode="decimal",
+        step="0.1",
+        placeholder=f"{LayoutConfig.horizontal_padding:g}",
+        min_value="0",
+        parser=float,
+        parser_label="a number",
+    ),
+    _AdvancedField(
+        name="vertical_padding",
+        config_name="vertical_padding",
+        label="Vertical padding",
+        input_mode="decimal",
+        step="0.1",
+        placeholder=f"{LayoutConfig.vertical_padding:g}",
+        min_value="0",
+        parser=float,
+        parser_label="a number",
+    ),
+    _AdvancedField(
+        name="footer_min_height",
+        config_name="min_footer_height",
+        label="Minimum footer height",
+        input_mode="decimal",
+        step="0.1",
+        placeholder=f"{LayoutConfig.min_footer_height:g}",
+        min_value="0.1",
+        parser=float,
+        parser_label="a number",
+    ),
+)
 
 
 def create_app() -> WsgiApp:
@@ -58,7 +143,12 @@ def _dispatch_request(environ: dict) -> Response:
     if path != "/":
         return _text_response("404 Not Found", "Not Found\n")
     if method == "GET":
-        return _html_response(raw_items="", error_message=None)
+        return _html_response(
+            raw_items="",
+            error_message=None,
+            raw_layout_values=_default_layout_values(),
+            advanced_open=False,
+        )
     if method == "POST":
         return _handle_form_submission(environ)
 
@@ -76,6 +166,8 @@ def _handle_form_submission(environ: dict) -> Response:
         keep_blank_values=True,
     )
     raw_items = form.getfirst("items", "")
+    raw_layout_values = _extract_layout_values(form)
+    advanced_open = _advanced_settings_requested(raw_layout_values)
     upload = _extract_upload(form)
 
     if upload is None or not getattr(upload, "filename", ""):
@@ -83,6 +175,8 @@ def _handle_form_submission(environ: dict) -> Response:
             raw_items=raw_items,
             error_message="Choose a single PDF file to upload.",
             status="400 Bad Request",
+            raw_layout_values=raw_layout_values,
+            advanced_open=advanced_open,
         )
 
     uploaded_bytes = upload.file.read() if getattr(upload, "file", None) else b""
@@ -91,10 +185,13 @@ def _handle_form_submission(environ: dict) -> Response:
             raw_items=raw_items,
             error_message="Uploaded PDF cannot be empty.",
             status="400 Bad Request",
+            raw_layout_values=raw_layout_values,
+            advanced_open=advanced_open,
         )
 
     try:
         items = parse_items(raw_items)
+        layout_config = _build_layout_config(raw_layout_values)
         download_name = _build_download_name(upload.filename)
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -105,6 +202,7 @@ def _handle_form_submission(environ: dict) -> Response:
                 input_pdf=input_path,
                 output_pdf=output_path,
                 items=items,
+                config=layout_config,
             )
             output_bytes = output_path.read_bytes()
     except (DependencyError, LayoutError, OSError, ParseError, ValueError) as exc:
@@ -112,6 +210,8 @@ def _handle_form_submission(environ: dict) -> Response:
             raw_items=raw_items,
             error_message=str(exc),
             status="400 Bad Request",
+            raw_layout_values=raw_layout_values,
+            advanced_open=advanced_open,
         )
 
     return (
@@ -147,13 +247,18 @@ def _html_response(
     raw_items: str,
     error_message: str | None,
     status: str = "200 OK",
+    raw_layout_values: dict[str, str] | None = None,
+    advanced_open: bool = False,
 ) -> Response:
     escaped_items = html.escape(raw_items, quote=False)
+    raw_layout_values = raw_layout_values or _default_layout_values()
     error_block = ""
     if error_message:
         error_block = (
             f'<p class="error" role="alert">{html.escape(error_message)}</p>'
         )
+    advanced_fields = _render_advanced_fields(raw_layout_values)
+    details_open = " open" if advanced_open else ""
 
     body = f"""<!doctype html>
 <html lang="en">
@@ -198,6 +303,7 @@ def _html_response(
       font-weight: 600;
     }}
     input[type="file"],
+    input[type="number"],
     textarea {{
       width: 100%;
       box-sizing: border-box;
@@ -211,6 +317,29 @@ def _html_response(
     textarea {{
       min-height: 8rem;
       resize: vertical;
+    }}
+    details {{
+      margin-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 1rem;
+    }}
+    summary {{
+      cursor: pointer;
+      font-weight: 600;
+    }}
+    fieldset {{
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }}
+    .advanced-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+      gap: 0.75rem 1rem;
+      margin-top: 0.75rem;
+    }}
+    .advanced-field label {{
+      margin-top: 0;
     }}
     button {{
       margin-top: 1rem;
@@ -253,6 +382,16 @@ def _html_response(
       <textarea id="items" name="items" placeholder="SF601 x2, BJ601DRY x1" required>{escaped_items}</textarea>
       <p class="hint">Example: <code>SF601 x2, BJ601DRY x1, DRSF601 x3</code></p>
 
+      <details class="advanced-settings"{details_open}>
+        <summary>Advanced settings</summary>
+        <fieldset>
+          <p class="hint">Leave these blank to keep the default automatic footer layout.</p>
+          <div class="advanced-grid">
+            {advanced_fields}
+          </div>
+        </fieldset>
+      </details>
+
       <button type="submit">Generate PDF</button>
     </form>
   </main>
@@ -268,6 +407,55 @@ def _html_response(
         ],
         body.encode("utf-8"),
     )
+
+
+def _default_layout_values() -> dict[str, str]:
+    return {field.name: "" for field in _ADVANCED_FIELDS}
+
+
+def _extract_layout_values(form: cgi.FieldStorage) -> dict[str, str]:
+    return {
+        field.name: form.getfirst(field.name, "").strip()
+        for field in _ADVANCED_FIELDS
+    }
+
+
+def _advanced_settings_requested(raw_layout_values: dict[str, str]) -> bool:
+    return any(raw_layout_values.values())
+
+
+def _build_layout_config(raw_layout_values: dict[str, str]) -> LayoutConfig:
+    parsed_values = {}
+    for field in _ADVANCED_FIELDS:
+        raw_value = raw_layout_values.get(field.name, "")
+        if not raw_value:
+            continue
+        try:
+            parsed_values[field.config_name] = field.parser(raw_value)
+        except ValueError as exc:
+            raise ValueError(f"{field.name} must be {field.parser_label}.") from exc
+
+    config = LayoutConfig(**parsed_values)
+    validate_layout_config(config)
+    return config
+
+
+def _render_advanced_fields(raw_layout_values: dict[str, str]) -> str:
+    rendered_fields = []
+    for field in _ADVANCED_FIELDS:
+        escaped_value = html.escape(raw_layout_values.get(field.name, ""), quote=True)
+        rendered_fields.append(
+            (
+                f'<div class="advanced-field">'
+                f'<label for="{field.name}">{field.label}</label>'
+                f'<input id="{field.name}" name="{field.name}" type="number" '
+                f'inputmode="{field.input_mode}" step="{field.step}" '
+                f'min="{field.min_value}" placeholder="{field.placeholder}" '
+                f'value="{escaped_value}">'
+                f"</div>"
+            )
+        )
+    return "".join(rendered_fields)
 
 
 def _text_response(

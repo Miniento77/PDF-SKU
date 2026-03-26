@@ -31,8 +31,11 @@ Optional server flags:
 
 1. Upload one PDF label file.
 2. Enter comma-separated SKU quantities such as `SF601 x2, BJ601DRY x1, DRSF601 x3`.
-3. Submit the form.
-4. Download the generated PDF.
+3. Leave Advanced settings collapsed for the default automatic layout, or expand it to override `min_font_size`, `max_font_size`, `max_lines`, `horizontal_padding`, `vertical_padding`, and `footer_min_height`.
+4. Submit the form.
+5. Download the generated PDF.
+
+The advanced inputs are optional. Blank values use the same sensible layout defaults as the CLI.
 
 ## CLI
 

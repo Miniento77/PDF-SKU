@@ -68,7 +68,7 @@ def choose_footer_layout(
         raise LayoutError("At least one SKU item is required to build a footer.")
 
     config = config or LayoutConfig()
-    _validate_config(config)
+    validate_layout_config(config)
 
     usable_width = page_width - (2 * config.horizontal_padding)
     if usable_width <= 0:
@@ -128,7 +128,7 @@ def choose_footer_layout(
     return max(candidates, key=lambda layout: (layout.font_size, -len(layout.lines)))
 
 
-def _validate_config(config: LayoutConfig) -> None:
+def validate_layout_config(config: LayoutConfig) -> None:
     if config.min_font_size <= 0 or config.max_font_size <= 0:
         raise ValueError("Font sizes must be positive.")
     if config.min_font_size > config.max_font_size:
@@ -199,4 +199,3 @@ def _find_best_partition(
 
 def _round_down_tenth(value: float) -> float:
     return math.floor(value * 10.0) / 10.0
-
