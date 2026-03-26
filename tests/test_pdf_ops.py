@@ -38,9 +38,9 @@ class PdfOpsTests(unittest.TestCase):
                 input_pdf=source,
                 output_pdf=output,
                 items=[
-                    SkuQuantity("SF601", 2),
-                    SkuQuantity("BJ601DRY", 1),
-                    SkuQuantity("DRSF601", 3),
+                    SkuQuantity("SF601x2"),
+                    SkuQuantity("BJ601DRY x1"),
+                    SkuQuantity("DRSF601-任意字符"),
                 ],
             )
 
@@ -53,7 +53,7 @@ class PdfOpsTests(unittest.TestCase):
             self.assertEqual(len(reader.pages), 1)
             self.assertGreater(float(page.mediabox.height), 432.0)
             self.assertIn("ORIGINAL LABEL", extracted_text)
-            self.assertIn("SF601 x2", extracted_text)
+            self.assertIn("SF601x2", extracted_text)
             self.assertGreater(layout.footer_height, 0)
 
     def _create_source_pdf(self, path: Path) -> None:

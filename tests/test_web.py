@@ -96,14 +96,14 @@ class WebAppTests(unittest.TestCase):
             self.assertTrue(Path(input_pdf).exists())
             self.assertEqual(
                 [item.display_text for item in items],
-                ["SF601 x2", "BJ601DRY x1"],
+                ["SF601x2", "BJ601DRY x1"],
             )
             self.assertEqual(config, LayoutConfig())
             Path(output_pdf).write_bytes(b"%PDF-1.4\nmock output\n")
 
         append_footer_to_label_mock.side_effect = write_output
         body, content_type = build_multipart_body(
-            fields={"items": "SF601 x2, BJ601DRY x1"},
+            fields={"items": "SF601x2，BJ601DRY x1"},
             files=[
                 (
                     "input_pdf",
@@ -142,7 +142,7 @@ class WebAppTests(unittest.TestCase):
         )
         body, content_type = build_multipart_body(
             fields={
-                "items": "SF601 x2",
+                "items": "SF601x2",
                 "min_font_size": "10",
                 "max_font_size": "24",
                 "max_lines": "3",
@@ -180,7 +180,7 @@ class WebAppTests(unittest.TestCase):
 
     def test_post_root_returns_form_error_for_invalid_items(self) -> None:
         body, content_type = build_multipart_body(
-            fields={"items": "SF601"},
+            fields={"items": "SF601x1，"},
             files=[
                 (
                     "input_pdf",
@@ -200,7 +200,10 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(status, "400 Bad Request")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
-        self.assertIn("无法解析".encode("utf-8"), response_body)
+        self.assertIn(
+            "请使用中文或英文逗号分隔每个 SKU，且不要出现空白项。".encode("utf-8"),
+            response_body,
+        )
 
     @patch("label_pdf_sku.web.append_footer_to_label")
     def test_post_root_returns_form_error_for_invalid_advanced_settings(
@@ -209,7 +212,7 @@ class WebAppTests(unittest.TestCase):
     ) -> None:
         body, content_type = build_multipart_body(
             fields={
-                "items": "SF601 x2",
+                "items": "SF601x2",
                 "min_font_size": "30",
                 "max_font_size": "20",
             },

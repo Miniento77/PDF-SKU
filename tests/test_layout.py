@@ -11,9 +11,9 @@ def fake_measure(text: str, font_name: str, font_size: float) -> float:
 
 
 class ChooseFooterLayoutTests(unittest.TestCase):
-    def test_prefers_single_line_when_it_supports_max_font_size(self) -> None:
+    def test_prefers_multiple_columns_with_alignment_when_it_supports_max_font_size(self) -> None:
         layout = choose_footer_layout(
-            items=[SkuQuantity("SF601", 2), SkuQuantity("BJ601DRY", 1)],
+            items=[SkuQuantity("SF601x2"), SkuQuantity("BJ601DRY x1")],
             page_width=160,
             config=LayoutConfig(
                 min_font_size=1,
@@ -28,16 +28,20 @@ class ChooseFooterLayoutTests(unittest.TestCase):
 
         self.assertEqual(len(layout.lines), 1)
         self.assertEqual(layout.font_size, 5.0)
-        self.assertEqual(layout.lines[0].text, "SF601 x2, BJ601DRY x1")
+        self.assertEqual([cell.text for cell in layout.lines[0].cells], ["SF601x2", "BJ601DRY x1"])
+        self.assertEqual(len(layout.column_widths), 2)
 
-    def test_splits_into_multiple_lines_when_needed_for_legibility(self) -> None:
+    def test_wraps_to_multiple_rows_with_no_more_than_four_items_per_line(self) -> None:
         layout = choose_footer_layout(
             items=[
-                SkuQuantity("SF601", 2),
-                SkuQuantity("BJ601DRY", 1),
-                SkuQuantity("DRSF601", 3),
+                SkuQuantity("A001"),
+                SkuQuantity("B002"),
+                SkuQuantity("C003"),
+                SkuQuantity("D004"),
+                SkuQuantity("E005"),
+                SkuQuantity("F006"),
             ],
-            page_width=40,
+            page_width=120,
             config=LayoutConfig(
                 min_font_size=1,
                 max_font_size=5,
@@ -49,17 +53,21 @@ class ChooseFooterLayoutTests(unittest.TestCase):
             measure_text=fake_measure,
         )
 
-        self.assertGreaterEqual(layout.font_size, 2.0)
-        self.assertEqual(len(layout.lines), 3)
+        self.assertEqual(len(layout.lines), 2)
         self.assertEqual(
-            [line.text for line in layout.lines],
-            ["SF601 x2", "BJ601DRY x1", "DRSF601 x3"],
+            [len(line.cells) for line in layout.lines],
+            [4, 2],
         )
+        self.assertEqual(
+            [[cell.column_index for cell in line.cells] for line in layout.lines],
+            [[0, 1, 2, 3], [0, 1]],
+        )
+        self.assertEqual(len(layout.column_widths), 4)
 
     def test_raises_when_text_cannot_fit_bounds(self) -> None:
         with self.assertRaises(LayoutError):
             choose_footer_layout(
-                items=[SkuQuantity("EXTREMELY-LONG-SKU-CODE", 9)],
+                items=[SkuQuantity("EXTREMELY-LONG-SKU-CODE")],
                 page_width=18,
                 config=LayoutConfig(
                     min_font_size=2,
@@ -75,4 +83,3 @@ class ChooseFooterLayoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

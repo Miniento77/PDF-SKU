@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from label_pdf_sku.cli import main
-from label_pdf_sku.layout import FooterLayout, FooterLine
+from label_pdf_sku.layout import FooterCell, FooterLayout, FooterLine
 
 
 class CliTests(unittest.TestCase):
@@ -16,20 +16,31 @@ class CliTests(unittest.TestCase):
         append_footer_to_label_mock,
     ) -> None:
         append_footer_to_label_mock.return_value = FooterLayout(
-            font_name="Helvetica-Bold",
+            font_name="Helvetica",
             font_size=18.0,
-            lines=[FooterLine(text="SF601 x2, BJ601DRY x1", width=180.0)],
+            lines=[
+                FooterLine(
+                    text="SF601x2 | BJ601DRY x1",
+                    width=180.0,
+                    cells=(
+                        FooterCell(text="SF601x2", width=72.0, column_index=0),
+                        FooterCell(text="BJ601DRY x1", width=108.0, column_index=1),
+                    ),
+                )
+            ],
             footer_height=72.0,
             line_spacing=1.15,
             horizontal_padding=18.0,
             vertical_padding=12.0,
+            column_widths=(72.0, 108.0),
+            column_gap=12.0,
         )
 
         exit_code = main(
             [
                 "input.pdf",
                 "output.pdf",
-                "SF601 x2, BJ601DRY x1",
+                "SF601x2，BJ601DRY x1",
                 "--min-font-size",
                 "10",
                 "--max-font-size",
@@ -52,7 +63,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(call.kwargs["output_pdf"], Path("output.pdf"))
         self.assertEqual(
             [item.display_text for item in call.kwargs["items"]],
-            ["SF601 x2", "BJ601DRY x1"],
+            ["SF601x2", "BJ601DRY x1"],
         )
         self.assertEqual(call.kwargs["config"].min_font_size, 10.0)
         self.assertEqual(call.kwargs["config"].max_font_size, 24.0)

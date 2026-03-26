@@ -85,10 +85,24 @@ def _build_footer_overlay(page_width: float, layout: FooterLayout) -> BytesIO:
 
     canvas.setFillColorRGB(0, 0, 0)
     canvas.setFont(layout.font_name, layout.font_size)
+    grid_width = sum(layout.column_widths) + (
+        max(0, len(layout.column_widths) - 1) * layout.column_gap
+    )
+    grid_origin_x = max(
+        layout.horizontal_padding,
+        (page_width - grid_width) / 2.0,
+    )
     for index, line in enumerate(layout.lines):
-        x_position = max(layout.horizontal_padding, (page_width - line.width) / 2.0)
         y_position = first_baseline - (index * layout.font_size * layout.line_spacing)
-        canvas.drawString(x_position, y_position, line.text)
+        if line.cells and layout.column_widths:
+            for cell in line.cells:
+                x_position = grid_origin_x + sum(
+                    layout.column_widths[:cell.column_index]
+                ) + (cell.column_index * layout.column_gap)
+                canvas.drawString(x_position, y_position, cell.text)
+        else:
+            x_position = max(layout.horizontal_padding, (page_width - line.width) / 2.0)
+            canvas.drawString(x_position, y_position, line.text)
 
     canvas.showPage()
     canvas.save()

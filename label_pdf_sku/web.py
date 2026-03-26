@@ -372,20 +372,20 @@ def _html_response(
 <body>
   <main>
     <h1>面单 SKU 标注工具</h1>
-    <p>上传一张快递面单 PDF，输入用逗号分隔的 <code>SKU x数量</code>，即可下载底部已追加 SKU 区域的新 PDF。</p>
+    <p>上传一张快递面单 PDF，输入用中文或英文逗号分隔的 SKU 文本，即可下载底部已追加 SKU 区域的新 PDF。</p>
     {error_block}
     <form method="post" enctype="multipart/form-data">
       <label for="input_pdf">面单 PDF</label>
       <input id="input_pdf" name="input_pdf" type="file" accept="application/pdf,.pdf" required>
 
       <label for="items">SKU 与数量</label>
-      <textarea id="items" name="items" placeholder="SF601 x2, BJ601DRY x1" required>{escaped_items}</textarea>
-      <p class="hint">示例：<code>SF601 x2, BJ601DRY x1, DRSF601 x3</code></p>
+      <textarea id="items" name="items" placeholder="SF601x1，BJ601DRY x1，任意字符都可以" required>{escaped_items}</textarea>
+      <p class="hint">示例：<code>SF601x1，BJ601DRY x1，第三个SKU-任意字符</code></p>
 
       <details class="advanced-settings"{details_open}>
         <summary>高级设置</summary>
         <fieldset>
-          <p class="hint">留空则使用默认的自动排版参数。</p>
+          <p class="hint">系统会自动按列对齐排版，每行最多放 4 个完整 SKU。留空则使用默认自动布局。</p>
           <div class="advanced-grid">
             {advanced_fields}
           </div>

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Callable, List, Sequence
 
 from .errors import DependencyError, LayoutError
 from .models import SkuQuantity
@@ -13,7 +13,7 @@ TextMeasure = Callable[[str, str, float], float]
 
 @dataclass(frozen=True)
 class LayoutConfig:
-    font_name: str = "Helvetica-Bold"
+    font_name: str = "Helvetica"
     min_font_size: float = 12.0
     max_font_size: float = 28.0
     max_lines: int = 4
@@ -27,6 +27,14 @@ class LayoutConfig:
 class FooterLine:
     text: str
     width: float
+    cells: Sequence["FooterCell"] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class FooterCell:
+    text: str
+    width: float
+    column_index: int
 
 
 @dataclass(frozen=True)
@@ -38,12 +46,12 @@ class FooterLayout:
     line_spacing: float
     horizontal_padding: float
     vertical_padding: float
+    column_widths: Sequence[float] = field(default_factory=tuple)
+    column_gap: float = 0.0
 
 
-@dataclass(frozen=True)
-class _Partition:
-    line_ranges: Sequence[Tuple[int, int]]
-    max_unit_width: float
+_MAX_ITEMS_PER_ROW = 4
+_COLUMN_GAP_EM = 1.6
 
 
 def measure_text_reportlab(text: str, font_name: str, font_size: float) -> float:
@@ -76,31 +84,69 @@ def choose_footer_layout(
 
     measure = measure_text or measure_text_reportlab
     rendered_items = [render_item_text(item) for item in items]
-    unit_widths = _build_unit_widths(rendered_items, config, measure)
+    unit_widths = [
+        float(measure(text, config.font_name, 1.0))
+        for text in rendered_items
+    ]
 
     candidates: List[FooterLayout] = []
-    line_limit = min(config.max_lines, len(rendered_items))
-    for line_count in range(1, line_limit + 1):
-        partition = _find_best_partition(unit_widths, len(rendered_items), line_count)
-        if partition is None:
+    max_columns = min(_MAX_ITEMS_PER_ROW, len(rendered_items))
+    min_columns = max(1, math.ceil(len(rendered_items) / config.max_lines))
+
+    for column_count in range(min_columns, max_columns + 1):
+        rows = [
+            (
+                rendered_items[index:index + column_count],
+                unit_widths[index:index + column_count],
+            )
+            for index in range(0, len(rendered_items), column_count)
+        ]
+        if len(rows) > config.max_lines:
             continue
 
-        if partition.max_unit_width <= 0:
+        column_unit_widths = [0.0] * column_count
+        for row_texts, row_unit_widths in rows:
+            for column_index, _ in enumerate(row_texts):
+                column_unit_widths[column_index] = max(
+                    column_unit_widths[column_index],
+                    row_unit_widths[column_index],
+                )
+
+        total_unit_width = sum(column_unit_widths) + (
+            max(0, column_count - 1) * _COLUMN_GAP_EM
+        )
+        if total_unit_width <= 0:
             font_size = config.max_font_size
         else:
-            font_size = min(config.max_font_size, usable_width / partition.max_unit_width)
+            font_size = min(config.max_font_size, usable_width / total_unit_width)
 
         font_size = _round_down_tenth(font_size)
         if font_size < config.min_font_size:
             continue
 
-        lines = [
-            FooterLine(
-                text=", ".join(rendered_items[start:end]),
-                width=unit_widths[(start, end)] * font_size,
+        column_widths = [width * font_size for width in column_unit_widths]
+        column_gap = _COLUMN_GAP_EM * font_size
+        lines: List[FooterLine] = []
+        for row_texts, row_unit_widths in rows:
+            cells = [
+                FooterCell(
+                    text=text,
+                    width=unit_widths_at_index * font_size,
+                    column_index=column_index,
+                )
+                for column_index, (text, unit_widths_at_index) in enumerate(
+                    zip(row_texts, row_unit_widths)
+                )
+            ]
+            lines.append(
+                FooterLine(
+                    text=" | ".join(row_texts),
+                    width=sum(column_widths[:len(row_texts)])
+                    + (max(0, len(row_texts) - 1) * column_gap),
+                    cells=cells,
+                )
             )
-            for start, end in partition.line_ranges
-        ]
+
         footer_height = max(
             config.min_footer_height,
             (2 * config.vertical_padding)
@@ -116,15 +162,24 @@ def choose_footer_layout(
                 line_spacing=config.line_spacing,
                 horizontal_padding=config.horizontal_padding,
                 vertical_padding=config.vertical_padding,
+                column_widths=column_widths,
+                column_gap=column_gap,
             )
         )
 
     if not candidates:
         raise LayoutError(
-            "当前配置下，SKU 内容无法在允许的宽度、字号范围和最大行数内完成排版。"
+            "当前配置下，SKU 内容无法在允许的宽度、字号范围、最大行数和每行最多 4 项的限制内完成排版。"
         )
 
-    return max(candidates, key=lambda layout: (layout.font_size, -len(layout.lines)))
+    return max(
+        candidates,
+        key=lambda layout: (
+            layout.font_size,
+            len(layout.column_widths),
+            -len(layout.lines),
+        ),
+    )
 
 
 def validate_layout_config(config: LayoutConfig) -> None:
@@ -140,60 +195,6 @@ def validate_layout_config(config: LayoutConfig) -> None:
         raise ValueError("行距至少要为 1。")
     if config.min_footer_height <= 0:
         raise ValueError("底部最小高度必须大于 0。")
-
-
-def _build_unit_widths(
-    rendered_items: Sequence[str],
-    config: LayoutConfig,
-    measure_text: TextMeasure,
-) -> Dict[Tuple[int, int], float]:
-    widths: Dict[Tuple[int, int], float] = {}
-    item_count = len(rendered_items)
-    for start in range(item_count):
-        for end in range(start + 1, item_count + 1):
-            line_text = ", ".join(rendered_items[start:end])
-            widths[(start, end)] = float(measure_text(line_text, config.font_name, 1.0))
-    return widths
-
-
-def _find_best_partition(
-    unit_widths: Dict[Tuple[int, int], float],
-    item_count: int,
-    line_count: int,
-) -> _Partition | None:
-    infinity = math.inf
-    dp = [[infinity] * (item_count + 1) for _ in range(line_count + 1)]
-    previous = [[-1] * (item_count + 1) for _ in range(line_count + 1)]
-    dp[0][0] = 0.0
-
-    for used_lines in range(1, line_count + 1):
-        for end in range(1, item_count + 1):
-            for start in range(used_lines - 1, end):
-                prior = dp[used_lines - 1][start]
-                if math.isinf(prior):
-                    continue
-                line_width = unit_widths[(start, end)]
-                cost = max(prior, line_width)
-                if cost < dp[used_lines][end]:
-                    dp[used_lines][end] = cost
-                    previous[used_lines][end] = start
-
-    if math.isinf(dp[line_count][item_count]):
-        return None
-
-    ranges: List[Tuple[int, int]] = []
-    end = item_count
-    used_lines = line_count
-    while used_lines > 0:
-        start = previous[used_lines][end]
-        if start < 0:
-            return None
-        ranges.append((start, end))
-        end = start
-        used_lines -= 1
-
-    ranges.reverse()
-    return _Partition(line_ranges=ranges, max_unit_width=dp[line_count][item_count])
 
 
 def _round_down_tenth(value: float) -> float:

@@ -30,8 +30,8 @@ cd /Users/jrclawbot/.openclaw/workspace/projects/label-pdf-sku
 ## 网页使用方法
 
 1. 上传一张 PDF 面单文件。
-2. 输入使用英文逗号分隔的 SKU 与数量，例如 `SF601 x2, BJ601DRY x1, DRSF601 x3`。
-3. 默认情况下保持“高级设置”收起即可自动排版；如果你想手动控制布局，也可以展开后填写 `min_font_size`、`max_font_size`、`max_lines`、`horizontal_padding`、`vertical_padding` 和 `footer_min_height`。
+2. 输入使用中文或英文逗号分隔的 SKU 文本，例如 `SF601x1，BJ601DRY x1，任意字符都可以`。
+3. 系统会自动按列对齐布局，每行最多放 4 个完整 SKU；如果你想手动控制布局，也可以展开“高级设置”填写 `min_font_size`、`max_font_size`、`max_lines`、`horizontal_padding`、`vertical_padding` 和 `footer_min_height`。
 4. 提交表单。
 5. 下载生成后的 PDF。
 

@@ -21,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("output_pdf", type=Path, help="输出 PDF 的保存路径。")
     parser.add_argument(
         "items",
-        help="SKU 与数量文本，使用英文逗号分隔，例如 'SF601 x2, BJ601DRY x1'。",
+        help="SKU 文本，使用中文或英文逗号分隔，例如 'SF601x1，BJ601DRY x1'。",
     )
     parser.add_argument("--min-font-size", type=float, default=LayoutConfig.min_font_size)
     parser.add_argument("--max-font-size", type=float, default=LayoutConfig.max_font_size)
