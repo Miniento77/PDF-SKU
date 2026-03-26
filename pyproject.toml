@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "label-pdf-sku"
-version = "0.1.0"
+version = "0.2.0"
 description = "Append adaptive SKU footers to single-page shipping-label PDFs."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -13,6 +13,10 @@ dependencies = [
   "reportlab>=4,<5",
 ]
 
+[project.optional-dependencies]
+build = [
+  "pyinstaller>=6,<7",
+]
+
 [tool.setuptools.packages.find]
 include = ["label_pdf_sku*"]
-

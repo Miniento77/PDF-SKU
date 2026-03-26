@@ -2,6 +2,19 @@
 
 `label-pdf-sku` 是一个本地网页工具，一次处理一张快递面单 PDF。它会尽量保留原始 PDF 的矢量内容，在页面下方扩展出新的底部区域，并把手动输入的 SKU 与数量排版进去，适配 4x6 面单打印。
 
+## 下载独立安装包
+
+如果你只是想直接使用，不想自己配 Python，请去 GitHub Releases 下载 macOS 安装包或压缩版应用：
+
+- [Releases 页面](https://github.com/Miniento77/PDF-SKU/releases/latest)
+
+当前提供两种发布物：
+
+- `LabelPdfSku-<version>-macOS.pkg`
+- `LabelPdfSku-<version>-macOS.zip`
+
+其中 `.pkg` 会把应用安装到 `/Applications`，`.zip` 解压后可直接得到 `.app`。
+
 ## 工作方式
 
 - 使用 `pypdf` 读取单页输入 PDF。
@@ -58,3 +71,16 @@ python3 -m venv .venv
 ```
 
 当 `pypdf` 和 `reportlab` 都已安装时，PDF 集成测试会自动运行。
+
+## 构建 macOS 安装包
+
+如果你想自己生成安装包，可以直接运行：
+
+```bash
+./scripts/build_macos_release.sh
+```
+
+脚本会自动安装构建依赖，产出：
+
+- `release/LabelPdfSku-<version>-macOS.pkg`
+- `release/LabelPdfSku-<version>-macOS.zip`
