@@ -5,7 +5,7 @@ from unittest.mock import patch
 from wsgiref.util import setup_testing_defaults
 
 from label_pdf_sku.layout import LayoutConfig
-from label_pdf_sku.web import create_app, main
+from label_pdf_sku.web import _extract_upload, _parse_form_data, create_app, main
 
 
 def build_multipart_body(
@@ -89,6 +89,42 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("高级设置".encode("utf-8"), body)
         self.assertIn(b'name="min_font_size"', body)
         self.assertIn(b'name="footer_min_height"', body)
+
+    def test_parse_form_data_supports_multipart_uploads_without_cgi(self) -> None:
+        body, content_type = build_multipart_body(
+            fields={
+                "items": "SF601x2，BJ601DRY x1",
+                "max_lines": "3",
+            },
+            files=[
+                (
+                    "input_pdf",
+                    "shipping-label.pdf",
+                    "application/pdf",
+                    b"%PDF-1.4\nmock input\n",
+                )
+            ],
+        )
+        environ = {}
+        setup_testing_defaults(environ)
+        environ.update(
+            {
+                "REQUEST_METHOD": "POST",
+                "PATH_INFO": "/",
+                "CONTENT_LENGTH": str(len(body)),
+                "CONTENT_TYPE": content_type,
+                "wsgi.input": io.BytesIO(body),
+            }
+        )
+
+        form = _parse_form_data(environ)
+        upload = _extract_upload(form)
+
+        self.assertEqual(form.getfirst("items"), "SF601x2，BJ601DRY x1")
+        self.assertEqual(form.getfirst("max_lines"), "3")
+        self.assertIsNotNone(upload)
+        self.assertEqual(upload.filename, "shipping-label.pdf")
+        self.assertEqual(upload.content, b"%PDF-1.4\nmock input\n")
 
     @patch("label_pdf_sku.web.append_footer_to_label")
     def test_post_root_returns_generated_pdf(self, append_footer_to_label_mock) -> None:

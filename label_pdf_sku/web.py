@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import cgi
 import html
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 from typing import Callable, Iterable, Sequence, Tuple
+from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 
 from .errors import DependencyError, LayoutError, ParseError
@@ -30,6 +32,24 @@ class _AdvancedField:
     min_value: str
     parser: Callable[[str], float | int]
     parser_label: str
+
+
+@dataclass(frozen=True)
+class _UploadedFile:
+    filename: str
+    content: bytes
+
+
+@dataclass(frozen=True)
+class _ParsedForm:
+    fields: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    files: dict[str, tuple[_UploadedFile, ...]] = field(default_factory=dict)
+
+    def getfirst(self, name: str, default: str = "") -> str:
+        values = self.fields.get(name)
+        if not values:
+            return default
+        return values[0]
 
 
 _ADVANCED_FIELDS = (
@@ -160,17 +180,13 @@ def _dispatch_request(environ: dict) -> Response:
 
 
 def _handle_form_submission(environ: dict) -> Response:
-    form = cgi.FieldStorage(
-        fp=environ["wsgi.input"],
-        environ=environ,
-        keep_blank_values=True,
-    )
+    form = _parse_form_data(environ)
     raw_items = form.getfirst("items", "")
     raw_layout_values = _extract_layout_values(form)
     advanced_open = _advanced_settings_requested(raw_layout_values)
     upload = _extract_upload(form)
 
-    if upload is None or not getattr(upload, "filename", ""):
+    if upload is None or not upload.filename:
         return _html_response(
             raw_items=raw_items,
             error_message="请选择一个 PDF 面单文件上传。",
@@ -179,7 +195,7 @@ def _handle_form_submission(environ: dict) -> Response:
             advanced_open=advanced_open,
         )
 
-    uploaded_bytes = upload.file.read() if getattr(upload, "file", None) else b""
+    uploaded_bytes = upload.content
     if not uploaded_bytes:
         return _html_response(
             raw_items=raw_items,
@@ -226,14 +242,117 @@ def _handle_form_submission(environ: dict) -> Response:
     )
 
 
-def _extract_upload(form: cgi.FieldStorage):
-    if "input_pdf" not in form:
-        return None
+def _parse_form_data(environ: dict) -> _ParsedForm:
+    body = _read_request_body(environ)
+    content_type = environ.get("CONTENT_TYPE", "")
+    media_type = content_type.split(";", 1)[0].strip().lower()
 
-    upload = form["input_pdf"]
-    if isinstance(upload, list):
-        return upload[0] if upload else None
-    return upload
+    if media_type == "multipart/form-data":
+        return _parse_multipart_form_data(body, content_type)
+    if media_type == "application/x-www-form-urlencoded":
+        return _parse_urlencoded_form_data(body, content_type)
+    return _ParsedForm()
+
+
+def _read_request_body(environ: dict) -> bytes:
+    stream = environ.get("wsgi.input")
+    if stream is None:
+        return b""
+
+    raw_length = str(environ.get("CONTENT_LENGTH", "")).strip()
+    if not raw_length:
+        return stream.read()
+
+    try:
+        content_length = max(0, int(raw_length))
+    except ValueError:
+        return stream.read()
+    return stream.read(content_length)
+
+
+def _parse_urlencoded_form_data(body: bytes, content_type: str) -> _ParsedForm:
+    charset = _content_type_charset(content_type)
+    parsed_fields = parse_qs(
+        body.decode(charset, errors="replace"),
+        keep_blank_values=True,
+    )
+    return _ParsedForm(
+        fields={
+            name: tuple(values)
+            for name, values in parsed_fields.items()
+        }
+    )
+
+
+def _parse_multipart_form_data(body: bytes, content_type: str) -> _ParsedForm:
+    if not body:
+        return _ParsedForm()
+
+    message = BytesParser(policy=policy.default).parsebytes(
+        (
+            f"Content-Type: {content_type}\r\n"
+            "MIME-Version: 1.0\r\n"
+            "\r\n"
+        ).encode("utf-8")
+        + body
+    )
+    if not message.is_multipart():
+        return _ParsedForm()
+
+    fields: dict[str, list[str]] = {}
+    files: dict[str, list[_UploadedFile]] = {}
+    for part in message.iter_parts():
+        if part.get_content_disposition() != "form-data":
+            continue
+
+        field_name = part.get_param("name", header="content-disposition")
+        if not field_name:
+            continue
+
+        payload = part.get_payload(decode=True) or b""
+        filename = part.get_filename()
+        if filename is not None:
+            files.setdefault(field_name, []).append(
+                _UploadedFile(
+                    filename=filename,
+                    content=payload,
+                )
+            )
+            continue
+
+        fields.setdefault(field_name, []).append(
+            payload.decode(_part_charset(part), errors="replace")
+        )
+
+    return _ParsedForm(
+        fields={
+            name: tuple(values)
+            for name, values in fields.items()
+        },
+        files={
+            name: tuple(values)
+            for name, values in files.items()
+        },
+    )
+
+
+def _content_type_charset(content_type: str) -> str:
+    for parameter in content_type.split(";")[1:]:
+        key, separator, value = parameter.strip().partition("=")
+        if separator and key.lower() == "charset":
+            return value.strip().strip('"') or "utf-8"
+    return "utf-8"
+
+
+def _part_charset(part) -> str:
+    return part.get_content_charset() or "utf-8"
+
+
+def _extract_upload(form: _ParsedForm) -> _UploadedFile | None:
+    uploads = form.files.get("input_pdf")
+    if not uploads:
+        return None
+    return uploads[0]
 
 
 def _build_download_name(filename: str) -> str:
@@ -413,7 +532,7 @@ def _default_layout_values() -> dict[str, str]:
     return {field.name: "" for field in _ADVANCED_FIELDS}
 
 
-def _extract_layout_values(form: cgi.FieldStorage) -> dict[str, str]:
+def _extract_layout_values(form: _ParsedForm) -> dict[str, str]:
     return {
         field.name: form.getfirst(field.name, "").strip()
         for field in _ADVANCED_FIELDS
