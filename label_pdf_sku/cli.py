@@ -72,3 +72,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"，共 {len(layout.lines)} 行底部内容，字号为 {layout.font_size:.1f}pt。"
     )
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

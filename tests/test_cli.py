@@ -1,10 +1,14 @@
 import io
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from label_pdf_sku.cli import main
 from label_pdf_sku.layout import FooterCell, FooterLayout, FooterLine
+from label_pdf_sku.pdf_ops import pdf_dependencies_available
 
 
 class CliTests(unittest.TestCase):
@@ -69,6 +73,46 @@ class CliTests(unittest.TestCase):
         self.assertEqual(call.kwargs["config"].max_font_size, 24.0)
         self.assertEqual(call.kwargs["config"].max_lines, 3)
         self.assertIn("output.pdf", stdout.getvalue())
+
+    @unittest.skipUnless(
+        pdf_dependencies_available(),
+        "Requires pypdf and reportlab for CLI module execution validation.",
+    )
+    def test_python_m_label_pdf_sku_cli_creates_output_pdf(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            input_pdf = Path(tmp_dir) / "input.pdf"
+            output_pdf = Path(tmp_dir) / "output.pdf"
+            self._create_source_pdf(input_pdf)
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "label_pdf_sku.cli",
+                    str(input_pdf),
+                    str(output_pdf),
+                    "answer",
+                ],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertTrue(output_pdf.exists())
+            self.assertIn(str(output_pdf), completed.stdout)
+
+    def _create_source_pdf(self, path: Path) -> None:
+        from reportlab.pdfgen.canvas import Canvas
+
+        canvas = Canvas(str(path), pagesize=(288, 432))
+        canvas.setFont("Helvetica", 16)
+        canvas.drawString(32, 382, "ORIGINAL LABEL")
+        canvas.rect(20, 20, 248, 332)
+        canvas.showPage()
+        canvas.save()
 
 
 if __name__ == "__main__":
