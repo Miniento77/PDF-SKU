@@ -13,8 +13,8 @@ from .pdf_ops import append_footer_to_label
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "为单页快递面单 PDF 增加底部区域，并为 4x6 面单打印排入 "
-            "SKU 与数量信息。"
+            "为任意单页快递面单 PDF 增加底部区域，并输出适配 4:6 "
+            "面单打印的 SKU 与数量信息。"
         )
     )
     parser.add_argument("input_pdf", type=Path, help="输入的单页 PDF 面单路径。")

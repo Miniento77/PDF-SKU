@@ -372,7 +372,7 @@ def _html_response(
 <body>
   <main>
     <h1>面单 SKU 标注工具</h1>
-    <p>上传一张快递面单 PDF，输入用中文或英文逗号分隔的 SKU 文本，即可下载底部已追加 SKU 区域的新 PDF。</p>
+    <p>上传任意单页快递面单 PDF，输入用中文或英文逗号分隔的 SKU 文本，即可下载已适配为 4:6 输出比例、底部附带 SKU 区域的新 PDF。</p>
     {error_block}
     <form method="post" enctype="multipart/form-data">
       <label for="input_pdf">面单 PDF</label>
