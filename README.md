@@ -33,7 +33,7 @@ cd PDF-SKU
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e .
-.venv/bin/python app.py
+./scripts/run_web.sh
 ```
 
 然后在浏览器打开 `http://127.0.0.1:8000`。
@@ -41,8 +41,10 @@ python3 -m venv .venv
 可选启动参数：
 
 ```bash
-.venv/bin/python app.py --host 127.0.0.1 --port 8000
+./scripts/run_web.sh --host 127.0.0.1 --port 8000
 ```
+
+如果你手动用别的 Python 启动网页，可能会出现“CLI 能跑，但网页提示缺少 PDF 依赖”的情况。现在页面会直接显示当前解释器路径，便于定位是不是没走项目 `.venv`。
 
 ## 网页使用方法
 

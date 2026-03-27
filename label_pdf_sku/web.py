@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import html
 import re
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from email import policy
@@ -15,7 +16,7 @@ from wsgiref.simple_server import make_server
 from .errors import DependencyError, LayoutError, ParseError
 from .layout import LayoutConfig, validate_layout_config
 from .parsing import parse_items
-from .pdf_ops import append_footer_to_label
+from .pdf_ops import append_footer_to_label, pdf_dependencies_available
 
 Response = Tuple[str, list[tuple[str, str]], bytes]
 WsgiApp = Callable[[dict, Callable[[str, list[tuple[str, str]]], object]], Iterable[bytes]]
@@ -362,6 +363,24 @@ def _build_download_name(filename: str) -> str:
     return f"{safe_stem}-sku.pdf"
 
 
+def _render_runtime_hint() -> str:
+    python_path = html.escape(sys.executable)
+    if pdf_dependencies_available():
+        return (
+            '<p class="hint">当前运行环境正常。Python: '
+            f'<code>{python_path}</code></p>'
+        )
+
+    return (
+        '<div class="error" role="alert">'
+        '<strong>当前启动这个网页的 Python 环境缺少 PDF 依赖。</strong><br>'
+        f'当前解释器：<code>{python_path}</code><br>'
+        '请优先使用项目虚拟环境启动，例如：'
+        '<code>.venv/bin/python app.py</code>。'
+        '</div>'
+    )
+
+
 def _html_response(
     raw_items: str,
     error_message: str | None,
@@ -376,6 +395,7 @@ def _html_response(
         error_block = (
             f'<p class="error" role="alert">{html.escape(error_message)}</p>'
         )
+    dependency_hint_block = _render_runtime_hint()
     advanced_fields = _render_advanced_fields(raw_layout_values)
     details_open = " open" if advanced_open else ""
 
@@ -492,6 +512,7 @@ def _html_response(
   <main>
     <h1>面单 SKU 标注工具</h1>
     <p>上传任意单页快递面单 PDF，输入用中文或英文逗号分隔的 SKU 文本，即可下载已适配为 4:6 输出比例、底部附带 SKU 区域的新 PDF。</p>
+    {dependency_hint_block}
     {error_block}
     <form method="post" enctype="multipart/form-data">
       <label for="input_pdf">面单 PDF</label>

@@ -5,7 +5,7 @@ from unittest.mock import patch
 from wsgiref.util import setup_testing_defaults
 
 from label_pdf_sku.layout import LayoutConfig
-from label_pdf_sku.web import _extract_upload, _parse_form_data, create_app, main
+from label_pdf_sku.web import _extract_upload, _parse_form_data, _render_runtime_hint, create_app, main
 
 
 def build_multipart_body(
@@ -89,6 +89,12 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("高级设置".encode("utf-8"), body)
         self.assertIn(b'name="min_font_size"', body)
         self.assertIn(b'name="footer_min_height"', body)
+
+    @patch("label_pdf_sku.web.pdf_dependencies_available", return_value=False)
+    def test_runtime_hint_shows_python_path_when_dependencies_missing(self, _mock) -> None:
+        hint = _render_runtime_hint()
+        self.assertIn("当前启动这个网页的 Python 环境缺少 PDF 依赖", hint)
+        self.assertIn(".venv/bin/python app.py", hint)
 
     def test_parse_form_data_supports_multipart_uploads_without_cgi(self) -> None:
         body, content_type = build_multipart_body(
